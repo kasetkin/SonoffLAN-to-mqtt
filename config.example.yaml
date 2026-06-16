@@ -1,0 +1,23 @@
+# sonoff-collector configuration (non-secret).
+#
+# Secrets live in the files referenced below, written chmod 600 by
+# `sonoff-collector login`:
+#   - devices.json      device cache, includes each device's devicekey
+#   - credentials.yaml  { username, token, homes } for `login --refresh`
+#
+# Relative paths are resolved against THIS config file's directory.
+
+devices_file: devices.json
+credentials_file: credentials.yaml
+
+# Default country code offered during `login` (maps to an eWeLink region).
+country_code: "+1"
+
+# Logging level: DEBUG | INFO | WARNING | ERROR
+log_level: INFO
+
+# Optional: manually supply keys for DIY / local-only devices that are NOT in
+# your eWeLink account (deviceid -> devicekey). Normally leave this empty —
+# `login` already stores keys for all account devices in devices.json.
+# devicekeys:
+#   100abc1234: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"

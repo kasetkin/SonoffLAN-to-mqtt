@@ -7,3 +7,13 @@ __pycache__/
 
 tests/test_0.py
 /.claude/
+
+# stand-alone collector: editable-install / build artifacts and local secrets
+*.egg-info/
+build/
+dist/
+/venv/
+/.venv/
+/config.yaml
+/devices.json
+/credentials.yaml

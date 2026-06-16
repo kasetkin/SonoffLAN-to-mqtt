@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sonoff-collector"
+version = "0.1.0"
+description = "Stand-alone local-only collector for Sonoff/eWeLink LAN devices (reuses the SonoffLAN transport core)"
+readme = "STANDALONE.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp>=3.9",
+    "cryptography>=39",
+    "zeroconf>=0.115",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+sonoff-collector = "standalone.cli:main"
+
+# Only ship the standalone package; the reused transport core under
+# custom_components/sonoff/core is imported at runtime via a sys.path shim
+# (see standalone/_core.py), not installed as a package.
+[tool.setuptools]
+packages = ["standalone"]
