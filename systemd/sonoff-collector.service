@@ -1,0 +1,27 @@
+[Unit]
+Description=Sonoff LAN stand-alone collector (local-only)
+Documentation=https://github.com/AlexxIT/SonoffLAN
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# --- adjust these paths to your deployment ---
+User=sonoff
+Group=sonoff
+WorkingDirectory=/opt/sonoff-collector
+ExecStart=/opt/sonoff-collector/venv/bin/sonoff-collector run --config /etc/sonoff-collector/config.yaml
+# ---------------------------------------------
+
+Restart=on-failure
+RestartSec=5
+
+# Hardening (optional, relax if it interferes with mDNS on your host).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+# Allow writing the device cache if it lives outside /etc:
+# ReadWritePaths=/var/lib/sonoff-collector
+
+[Install]
+WantedBy=multi-user.target
