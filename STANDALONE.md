@@ -11,9 +11,10 @@ Assistant**. It reuses the integration's Home-Assistant-free transport core
   the cached devices, listens on the LAN via mDNS, decrypts/collects device
   state, and logs it. It **never connects to eWeLink**.
 
-> Forwarding the collected data to MQTT is a planned next step. Today the
-> service logs every update; the hook for publishing lives in
-> `StandaloneRegistry._on_update` (`standalone/registry.py`).
+- **`sonoff-collector mqtt-login` + `run`** — optionally forward all collected
+  state to an **MQTT broker** with **Home Assistant auto-discovery**, and accept
+  control commands back from HA (HA → MQTT → collector → device over the LAN).
+  Still no eWeLink cloud at runtime.
 
 ## Requirements
 
@@ -31,8 +32,8 @@ python3 -m venv venv
 ./venv/bin/pip install -e .
 ```
 
-This installs only `aiohttp`, `cryptography`, `zeroconf`, and `pyyaml` (no Home
-Assistant) and puts a `sonoff-collector` command in `venv/bin`.
+This installs only `aiohttp`, `cryptography`, `zeroconf`, `pyyaml`, and `aiomqtt`
+(no Home Assistant) and puts a `sonoff-collector` command in `venv/bin`.
 
 ## 1. One-time setup (interactive)
 
@@ -71,7 +72,48 @@ INFO  standalone.registry | UPDATE 100abc1234 (Kitchen Plug) <= {'switch': 'on',
 
 (`python -m standalone run --config config.yaml` works too, if you prefer.)
 
-## 3. Install as a systemd service
+## 3. Forward to MQTT / Home Assistant
+
+Configure the broker once (stored **chmod 600** in `mqtt.yaml`, never in
+`config.yaml`):
+
+```bash
+./venv/bin/sonoff-collector mqtt-login --config config.yaml
+```
+
+With `mqtt.yaml` present, `run` publishes using **HA MQTT Discovery**, so each
+device shows up in Home Assistant automatically:
+
+- **State** (retained): `sonoff/<deviceid>/state` — full params as JSON.
+- **Discovery** (retained): `homeassistant/<component>/sonoff_<deviceid>/<param>/config`.
+- **Availability** (LWT): `sonoff/status` = `online`/`offline`.
+- **Control:** `switch` becomes a controllable HA entity. HA publishes to
+  `sonoff/<deviceid>/set/switch`; the collector calls the core's `registry.send()`
+  → the device over the **LAN** (no cloud). Commands for a device not yet
+  discovered on the LAN are logged and dropped.
+
+Known params get proper device classes/units (temperature, humidity, power,
+voltage, current, rssi, battery); `switch` is controllable; every other scalar
+param becomes a generic sensor — so all collected data appears.
+
+### Test it without devices
+
+No LAN devices yet? Replay jittered values from your real `devices.json`:
+
+```bash
+./venv/bin/sonoff-collector simulate --config config.yaml --interval 5
+```
+
+Watch them (and the discovery configs) arrive:
+
+```bash
+mosquitto_sub -h <broker> -u <user> -P <pass> -t 'homeassistant/#' -t 'sonoff/#' -v
+```
+
+The simulated device + entities should appear in Home Assistant and update every
+interval. (Actuating the HA switch needs the real devices on your LAN.)
+
+## 4. Install as a systemd service
 
 Edit paths/user in [`systemd/sonoff-collector.service`](systemd/sonoff-collector.service),
 then:
@@ -79,7 +121,7 @@ then:
 ```bash
 sudo useradd --system --no-create-home sonoff      # or reuse an existing user
 sudo mkdir -p /etc/sonoff-collector
-sudo cp config.yaml devices.json credentials.yaml /etc/sonoff-collector/
+sudo cp config.yaml devices.json credentials.yaml mqtt.yaml /etc/sonoff-collector/
 sudo chown -R sonoff:sonoff /etc/sonoff-collector
 sudo cp systemd/sonoff-collector.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -100,8 +142,10 @@ it if the process dies.
   (some battery / Zigbee-bridged models without a LAN endpoint) won't appear.
 - **Refreshing devices:** after adding/removing devices in the eWeLink app,
   re-run `login --refresh` (or `login`) to update `devices.json`.
-- **Secrets at rest:** `devices.json` holds `devicekey`s and `credentials.yaml`
-  holds your access token — both are written `chmod 600`; keep them that way.
+- **Secrets at rest:** `devices.json` (devicekeys), `credentials.yaml` (eWeLink
+  token), and `mqtt.yaml` (broker password) are all written `chmod 600`; keep them
+  that way. Set `tls: true` in `mqtt.yaml` so the broker password isn't sent in the
+  clear.
 
 ## How it stays Home-Assistant-free
 

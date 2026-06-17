@@ -4,11 +4,13 @@
 # `sonoff-collector login`:
 #   - devices.json      device cache, includes each device's devicekey
 #   - credentials.yaml  { username, token, homes } for `login --refresh`
+#   - mqtt.yaml         broker host/user/password, written by `mqtt-login`
 #
 # Relative paths are resolved against THIS config file's directory.
 
 devices_file: devices.json
 credentials_file: credentials.yaml
+mqtt_file: mqtt.yaml
 
 # Default country code offered during `login` (maps to an eWeLink region).
 country_code: "+1"

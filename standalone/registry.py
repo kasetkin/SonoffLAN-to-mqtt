@@ -119,10 +119,13 @@ class StandaloneRegistry(XRegistry):
             self._on_update(msg.get("subdevid", did), params)
 
     def _on_update(self, deviceid: str, params: dict):
-        device = self.devices.get(deviceid) or {}
-        _LOGGER.info("UPDATE %s (%s) <= %s", deviceid, device.get("name", "?"), params)
-        if self._sink:
+        device = self.devices.get(deviceid)
+        name = device.get("name", "?") if device else "?"
+        _LOGGER.info("UPDATE %s (%s) <= %s", deviceid, name, params)
+        # The sink receives the FULL device (identity + merged params) so the MQTT
+        # forwarder has everything it needs for discovery + full-state publishing.
+        if self._sink and device:
             try:
-                self._sink(deviceid, params)
+                self._sink(device, params)
             except Exception as e:
                 _LOGGER.warning("update sink error", exc_info=e)

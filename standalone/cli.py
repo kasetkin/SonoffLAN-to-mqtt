@@ -1,4 +1,4 @@
-"""Command-line entry point: ``sonoff-collector {login,run}``."""
+"""Command-line entry point: ``sonoff-collector {login,mqtt-login,run,simulate}``."""
 
 import argparse
 import asyncio
@@ -38,7 +38,18 @@ def main(argv=None) -> int:
         action="store_true",
         help="re-sync the device list using the saved token (no prompt)",
     )
+    sub.add_parser(
+        "mqtt-login", parents=[common], help="configure the MQTT broker (chmod 600)"
+    )
     sub.add_parser("run", parents=[common], help="run the local-only collector")
+    p_sim = sub.add_parser(
+        "simulate",
+        parents=[common],
+        help="publish fake data to MQTT (test without devices)",
+    )
+    p_sim.add_argument(
+        "--interval", type=float, default=5.0, help="seconds between fake updates"
+    )
 
     args = parser.parse_args(argv)
     config = Config.load(args.config)
@@ -49,10 +60,20 @@ def main(argv=None) -> int:
 
         return asyncio.run(auth.login(config, refresh=args.refresh))
 
+    if args.command == "mqtt-login":
+        from . import mqtt
+
+        return mqtt.mqtt_login(config)
+
     if args.command == "run":
         from . import runner
 
         return asyncio.run(runner.run(config))
+
+    if args.command == "simulate":
+        from . import simulate
+
+        return asyncio.run(simulate.simulate(config, args.interval))
 
     return 1  # unreachable (subcommand is required)
 
