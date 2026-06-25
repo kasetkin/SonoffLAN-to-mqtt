@@ -19,8 +19,8 @@ dependencies = [
 [project.scripts]
 sonoff-collector = "standalone.cli:main"
 
-# Only ship the standalone package; the reused transport core under
-# custom_components/sonoff/core is imported at runtime via a sys.path shim
-# (see standalone/_core.py), not installed as a package.
+# Ship the standalone package plus its vendored transport core
+# (standalone/ewelink/, see standalone/ewelink/VENDORED.md).
+# custom_components/ is NOT packaged.
 [tool.setuptools]
-packages = ["standalone"]
+packages = ["standalone", "standalone.ewelink"]

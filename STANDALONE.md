@@ -25,15 +25,19 @@ Assistant**. It reuses the integration's Home-Assistant-free transport core
 
 ## Install
 
+From a checkout of this repository (the collector lives under `standalone/` and
+vendors its transport core, so it is self-contained):
+
 ```bash
-git clone https://github.com/AlexxIT/SonoffLAN.git /opt/sonoff-collector
-cd /opt/sonoff-collector
+cd <this-repo>
 python3 -m venv venv
 ./venv/bin/pip install -e .
 ```
 
 This installs only `aiohttp`, `cryptography`, `zeroconf`, `pyyaml`, and `aiomqtt`
-(no Home Assistant) and puts a `sonoff-collector` command in `venv/bin`.
+(no Home Assistant) and puts a `sonoff-collector` command in `venv/bin`. Because
+`standalone/` is self-contained you can also build a wheel (`python -m build`) and
+`pip install` it anywhere.
 
 ## 1. One-time setup (interactive)
 
@@ -149,9 +153,11 @@ it if the process dies.
 
 ## How it stays Home-Assistant-free
 
-`standalone/_core.py` puts `custom_components/sonoff/core` on `sys.path` and
-imports `ewelink` as a top-level package. Because `core/` is a namespace package
-(no `__init__.py`), this does **not** execute the HA-coupled
-`custom_components/sonoff/__init__.py`. The only HA imports reachable from the
-core are lazy calls inside two `XRegistry` methods, both overridden in
-`standalone/registry.py`. Nothing under `custom_components/` is modified.
+The Home-Assistant-free transport core (`ewelink`: `XRegistry` + the cloud/local
+transports) is **vendored** into `standalone/ewelink/` — a byte-identical copy of
+`custom_components/sonoff/core/ewelink/` (minus `camera.py`; see
+`standalone/ewelink/VENDORED.md`). It pulls in only `aiohttp`/`cryptography`/
+`zeroconf`, never Home Assistant. The only HA imports it *could* reach are lazy
+`from ..devices import …` calls inside two `XRegistry` methods, both overridden in
+`standalone/registry.py`, so they never run. `custom_components/` is not imported
+at runtime and is left unmodified.

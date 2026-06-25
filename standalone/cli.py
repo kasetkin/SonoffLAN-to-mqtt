@@ -14,8 +14,8 @@ def _setup_logging(level: str) -> None:
         level=lvl,
         format="%(asctime)s %(levelname)-7s %(name)s | %(message)s",
     )
-    # the reused transport core logs under the top-level "ewelink" logger
-    logging.getLogger("ewelink").setLevel(lvl)
+    # the vendored transport core logs under the "standalone.ewelink.*" tree
+    logging.getLogger("standalone").setLevel(lvl)
 
 
 def main(argv=None) -> int:
