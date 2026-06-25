@@ -38,6 +38,28 @@ if [ ! -f config.yaml ]; then
     echo "==> Scaffolded config.yaml"
 fi
 
+# Generate a ready-to-use systemd unit tailored to THIS install: the user that ran
+# deploy.sh, absolute paths, and no ProtectHome (so a /home install stays readable).
+SERVICE_USER="$(id -un)"
+cat > sonoff-collector.service <<EOF
+[Unit]
+Description=Sonoff LAN stand-alone collector (local-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$SERVICE_USER
+WorkingDirectory=$HERE
+ExecStart=$HERE/venv/bin/sonoff-collector run --config $HERE/config.yaml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+echo "==> Wrote systemd unit $HERE/sonoff-collector.service (User=$SERVICE_USER)"
+
 BIN="$HERE/venv/bin/sonoff-collector"
 CFG="$HERE/config.yaml"
 cat <<EOF
@@ -54,10 +76,9 @@ Done. Remaining steps (interactive — run them yourself):
      a real 'UPDATE ... (THR316D)', and 'MQTT connected'
        $BIN run --config $CFG
 
-  4) (optional) run as a systemd service — edit the unit's paths/User first so
-     WorkingDirectory + ExecStart point at $HERE :
-       sudoedit systemd/sonoff-collector.service
-       sudo cp systemd/sonoff-collector.service /etc/systemd/system/
+  4) (optional) run as a systemd service — a unit tailored to this install was
+     generated (User=$SERVICE_USER, correct paths). Just install it:
+       sudo cp $HERE/sonoff-collector.service /etc/systemd/system/
        sudo systemctl daemon-reload
        sudo systemctl enable --now sonoff-collector
        journalctl -u sonoff-collector -f
