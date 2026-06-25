@@ -19,6 +19,9 @@ Assistant**. It reuses the integration's Home-Assistant-free transport core
 ## Requirements
 
 - Python 3.10+
+- On **32-bit ARM (Raspberry Pi / `armv7l`)** — or any platform/Python without
+  prebuilt wheels — install build deps first so `cffi` (for `cryptography`) can
+  compile: `sudo apt install -y python3-dev libffi-dev build-essential pkg-config`.
 - Run on a host with **LAN multicast/mDNS** access to your Sonoff devices
   (same L2 network). The device firmware must expose its LAN interface
   (the eWeLink app's "LAN mode" / "Local control" enabled).
@@ -38,6 +41,22 @@ This installs only `aiohttp`, `cryptography`, `zeroconf`, `pyyaml`, and `aiomqtt
 (no Home Assistant) and puts a `sonoff-collector` command in `venv/bin`. Because
 `standalone/` is self-contained you can also build a wheel (`python -m build`) and
 `pip install` it anywhere.
+
+## Build a deployable bundle (for another host)
+
+To deploy on a server, build a source bundle here and copy it over:
+
+```bash
+./scripts/build-bundle.sh                  # -> dist/sonoff-collector-<ver>.tar.gz
+scp dist/sonoff-collector-<ver>.tar.gz user@server:~/
+ssh user@server
+tar xzf sonoff-collector-<ver>.tar.gz && cd sonoff-collector-<ver>
+./deploy.sh                                # creates venv, installs, scaffolds config.yaml
+```
+
+The tarball holds only the self-contained source (no secrets, no
+`custom_components/`). `deploy.sh` is install-only — it prints the interactive
+`login` / `mqtt-login` / `run` steps and the optional systemd setup to finish.
 
 ## 1. One-time setup (interactive)
 
