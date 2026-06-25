@@ -6,11 +6,14 @@ Differences from the core registry:
   never imports the HA-coupled ``devices.py``).
 * ``local_update`` pre-registers an unknown LAN (DIY) device using a small local
   copy of the DIY table, so the core's lazy ``from ..devices import setup_diy``
-  is never reached, then delegates to the core and forwards every update to an
-  ``_on_update`` sink — the seam where MQTT publishing will plug in later.
+  is never reached, then delegates to the core.
+* every registered device is "tapped" on the core dispatcher (like an HA entity),
+  so each update reaches the ``_on_update`` sink — the MQTT publishing seam — for
+  both plaintext DIY and encrypted (non-DIY) devices.
 """
 
 import logging
+from functools import partial
 
 from ._core import XRegistry
 
@@ -62,6 +65,16 @@ class StandaloneRegistry(XRegistry):
             }
         }
         self._sink = on_update
+        self._tapped: set[str] = set()
+
+    def _tap(self, deviceid: str) -> None:
+        # Subscribe our sink to the core dispatcher for this device — the same way
+        # HA entities do. The core calls dispatcher_send(deviceid, params) AFTER it
+        # decrypts/merges an update (including encrypted devices, where msg["params"]
+        # is never populated), so this is the reliable hook.
+        if deviceid not in self._tapped:
+            self._tapped.add(deviceid)
+            self.dispatcher_connect(deviceid, partial(self._on_update, deviceid))
 
     def setup_devices(self, devices: list) -> list:
         # mirrors core setup_devices (ewelink/__init__.py:34-70) minus get_spec
@@ -84,6 +97,7 @@ class StandaloneRegistry(XRegistry):
                     except StopIteration:
                         pass
                 self.devices[did] = device
+                self._tap(did)
                 _LOGGER.debug(
                     "%s registered (uiid=%s)",
                     did,
@@ -111,20 +125,23 @@ class StandaloneRegistry(XRegistry):
             if params:
                 _LOGGER.info("%s discovered as a local DIY device", did)
                 self.devices[did] = _setup_diy(msg)
+                self._tap(did)
             # else: encrypted device without a key -> let the core skip it
 
+        # The core decrypts/merges, then calls dispatcher_send(deviceid, params),
+        # which our per-device tap (see _tap) turns into the _on_update sink. We do
+        # NOT read msg["params"] here: the core never sets it for encrypted (non-DIY)
+        # devices, which is why their updates previously never reached MQTT.
         super().local_update(msg)
 
-        if params := msg.get("params"):
-            self._on_update(msg.get("subdevid", did), params)
-
-    def _on_update(self, deviceid: str, params: dict):
+    def _on_update(self, deviceid: str, params: dict | None = None):
         device = self.devices.get(deviceid)
-        name = device.get("name", "?") if device else "?"
-        _LOGGER.info("UPDATE %s (%s) <= %s", deviceid, name, params)
+        if not device:
+            return
+        _LOGGER.info("UPDATE %s (%s) <= %s", deviceid, device.get("name", "?"), params)
         # The sink receives the FULL device (identity + merged params) so the MQTT
         # forwarder has everything it needs for discovery + full-state publishing.
-        if self._sink and device:
+        if self._sink:
             try:
                 self._sink(device, params)
             except Exception as e:
